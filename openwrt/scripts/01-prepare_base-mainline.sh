@@ -8,6 +8,8 @@ git clone https://$github/sbwml/autocore-arm -b openwrt-24.10 package/system/aut
 # rockchip - target - r4s/r5s only
 rm -rf target/linux/rockchip
 git clone https://$github/dd-ray/target_linux_rockchip-6.x target/linux/rockchip -b openwrt-24.10
+rm -rf target/linux/rockchip/patches-6.13
+rm -rf target/linux/rockchip/patches-6.6
 
 # bpf-headers - 6.12
 sed -ri "s/(PKG_PATCHVER:=)[^\"]*/\16.12/" package/kernel/bpf-headers/Makefile
@@ -44,7 +46,12 @@ if [ "$local_kernel_version" = "$release_kernel_version" ] && [ -z "$git_passwor
 else
     git clone https://$github/dd-ray/target_linux_generic -b openwrt-24.10 target/linux/generic-6.12 --depth=1
 fi
+rm -rf target/linux/generic-6.12/backport-6.13
+rm -rf target/linux/generic-6.12/pending-6.13
+rm -rf target/linux/generic-6.12/hack-6.13
+rm -rf target/linux/generic-6.12/config-6.13
 cp -a target/linux/generic-6.12/* target/linux/generic
+rm -rf target/linux/generic-6.12
 
 # bcm53xx - fix build kernel with clang
 [ "$platform" = "bcm53xx" ] && [ "$KERNEL_CLANG_LTO" = "y" ] && rm -f target/linux/generic/hack-6.6/220-arm-gc_sections.patch target/linux/generic/hack-6.12/220-arm-gc_sections.patch
