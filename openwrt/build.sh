@@ -19,14 +19,18 @@ endgroup() {
     fi
     GROUP=
 }
-
-# check
-if [ "$(whoami)" != "sbwml" ] && [ -z "$git_name" ] && [ -z "$git_password" ]; then
-    echo -e "\n${RED_COLOR} Not authorized. Execute the following command to provide authorization information:${RES}\n"
-    echo -e "${BLUE_COLOR} export git_name=your_username git_password=your_password${RES}\n"
-    exit 1
-fi
-
+echo -e ""
+echo -e "${BLUE_COLOR}╔═════════════════════════════════════════════════════════════╗${RES}"
+echo -e "${BLUE_COLOR}║${RES}                     OPENWRT BUILD SYSTEM                    ${BLUE_COLOR}║${RES}"
+echo -e "${BLUE_COLOR}╚═════════════════════════════════════════════════════════════╝${RES}"
+echo -e "${BLUE_COLOR}┌─────────────────────────────────────────────────────────────┐${RES}"
+echo -e "${BLUE_COLOR}│${RES}  🛠️  ${YELLOW_COLOR}Developer:${RES} sbwml                                       ${BLUE_COLOR}│${RES}"
+echo -e "${BLUE_COLOR}│${RES}  🌐  ${YELLOW_COLOR}GitHub:${RES} github.com/sbwml/builder                      ${BLUE_COLOR}│${RES}"
+echo -e "${BLUE_COLOR}│${RES}  💡  ${YELLOW_COLOR}Philosophy:${RES} Open Source · Customization · Performance ${BLUE_COLOR}│${RES}"
+echo -e "${BLUE_COLOR}└─────────────────────────────────────────────────────────────┘${RES}"
+echo -e "${BLUE_COLOR}🔧 ${GREEN_COLOR}Building:${RES} $(date '+%Y-%m-%d %H:%M:%S')"
+echo -e "${BLUE_COLOR}══════════════════════════════════════════════════════════════${RES}"
+echo -e ""
 #####################################
 #  NanoPi R4S OpenWrt Build Script  #
 #####################################
