@@ -1,278 +1,283 @@
-# NanoPi R4S/R5S/R5C/R76S & X86_64 OpenWrt 简易构建脚本存档
+<p align="center">
+  <img width="400px" src="https://github.com/user-attachments/assets/6d37cd69-a232-4444-9f91-30e5942a8938" />
+</p>
 
-### 存档来自：https://init2.cooluc.com
+<h1 align="center">OpenWrt for FriendlyElec NanoPi R4S / R5S / R76S & X86_64</h1>
 
----------------
+<p align="center">
+  <img width="300px" src="https://cdn.cooluc.com/r4s/r5s_.webp" />
+</p>
 
-## 基于 Linux 6.12 LTS 固件下载:
-
-#### NanoPi R4S: https://r4s.cooluc.com
-
-#### NanoPi R5S/R5C: https://r5s.cooluc.com
-
-#### NanoPi R76S: https://r76s.cooluc.com
-
-#### X86_64: https://x86.cooluc.com
-
-#### Snapshot 24.10: https://snapshot.cooluc.com
-
-#### 构建来源: https://github.com/sbwml/builder
-
----------------
-
-## 本地编译环境安装（根据 debian 11 / ubuntu 22）
-```shell
-sudo apt-get update
-sudo apt-get install -y build-essential flex bison g++ gawk gcc-multilib g++-multilib gettext git libfuse-dev libncurses5-dev libssl-dev python3 python3-pip python3-ply python3-distutils python3-pyelftools rsync unzip zlib1g-dev file wget subversion patch upx-ucl autoconf automake curl asciidoc binutils bzip2 lib32gcc-s1 libc6-dev-i386 uglifyjs msmtp texinfo libreadline-dev libglib2.0-dev xmlto libelf-dev libtool autopoint antlr3 gperf ccache swig coreutils haveged scons libpython3-dev jq
-```
-
----------------
-
-## 授权构建
-#### 由于本源码具备后门被证实 [#92](https://github.com/sbwml/r4s_build_script/issues/92)，良心发现后，防止毒害社会不再允许任何人~~与狗~~直接构建😏
-#### 如果你得到授权，请在构建前执行以下命令
-
-```
-export git_name=账户名 git_password=密码
-```
-
----------------
-
-### 启用 [Clang/LLVM](https://docs.kernel.org/kbuild/llvm.html) 构建内核
-##### 脚本支持使用 Clang/LLVM 构建内核，NanoPi & X86_64 设备将同时启用 LLVM LTO 链接时优化，这会增加编译的时间，但会获得更优的性能
-##### 只需在构建固件前执行以下命令即可启用 Clang/LLVM 构建内核与内核模块
-
-```
-export KERNEL_CLANG_LTO=y
-```
-
-### 启用 [GCC13](https://gcc.gnu.org/gcc-13/)/[GCC14](https://gcc.gnu.org/gcc-14/)/[GCC15](https://gcc.gnu.org/gcc-15/) 工具链编译
-##### 只需在构建固件前执行以下命令即可启用 GCC13/GCC14/GCC15 交叉工具链
-
-```
-# GCC13
-export USE_GCC13=y
-```
-
-```
-# GCC14
-export USE_GCC14=y
-```
-
-```
-# GCC15
-export USE_GCC15=y
-```
-
-### 启用 [LTO](https://gcc.gnu.org/onlinedocs/gccint/LTO-Overview.html) 优化
-##### 只需在构建固件前执行以下命令即可启用编译器 LTO 优化
-
-```
-export ENABLE_LTO=y
-```
-
-### 启用 [MOLD](https://github.com/rui314/mold) 现代链接器（需要启用 `USE_GCC13=y` 或 `USE_GCC14=y` 或 `USE_GCC15=y`）
-##### 只需在构建固件前执行以下命令即可启用 MOLD 链接，如果使用它建议同时启用 LTO 优化
-
-```
-export ENABLE_MOLD=y
-```
-
-### 启用 [eBPF](https://docs.kernel.org/bpf/) 支持
-##### 只需在构建固件前执行以下命令即可启用 eBPF 支持
-
-```
-export ENABLE_BPF=y
-```
-
-### 启用 [LRNG](https://github.com/smuellerDD/lrng)
-##### 只需在构建固件前执行以下命令即可启用 LRNG 内核随机数支持
-
-```
-export ENABLE_LRNG=y
-```
-
-### 启用 [Glibc](https://www.gnu.org/software/libc/) 库构建 （实验性）
-##### 启用 glibc 库进行构建时，构建的固件将会同时兼容 musl/glibc 的预构建二进制程序，但缺失 `opkg install` 安装源支持
-##### 只需在构建固件前执行以下命令即可启用 glibc 构建
-
-```
-export ENABLE_GLIBC=y
-```
-
-### 启用本地 Kernel Modules 安装源 （For developers）
-##### 启用该标志时，将会拷贝全部 target packages 到 rootfs 并替换 openwrt_core 源为本地方式，以供离线 `opkg install kmod-xxx` 安装操作
-##### 这会增加固件文件大小（大约 70MB），对项目内核版本、模块、补丁 有修改的需求时，该功能可能会有用
-##### 只需在构建固件前执行以下命令即可启用本地 Kernel Modules 安装源
-
-```
-export ENABLE_LOCAL_KMOD=y
-```
-
-### 启用 [DPDK](https://www.dpdk.org/) 支持
-##### DPDK（Data Plane Development Kit）是一个开源工具集，专为加速数据包处理而设计，通过优化的数据平面技术，实现高性能、低延迟的网络应用
-##### 只需在构建固件前执行以下命令即可启用 DPDK 工具集支持
-
-```
-export ENABLE_DPDK=y
-```
-
-### 快速构建（仅限 Github Actions）
-##### 脚本会使用 [toolchain](https://github.com/sbwml/toolchain-cache) 缓存代替源码构建，与常规构建相比能节省大约 60 分钟的编译耗时，仅适用于 Github Actions `ubuntu-24.04` 环境
-##### 只需在构建固件前执行以下命令即可启用快速构建
-
-```
-export BUILD_FAST=y
-```
-
-### 构建 Minimal 版本
-##### 不包含第三方插件，接近官方 OpenWrt 固件
-##### 只需在构建固件前执行以下命令即可构建 Minimal 版本
-
-```
-export MINIMAL_BUILD=y
-```
-
-### 更改 LAN IP 地址
-##### 自定义默认 LAN IP 地址
-##### 只需在构建固件前执行以下命令即可覆盖默认 LAN 地址（默认：10.0.0.1）
-
-```
-export LAN=10.0.0.1
-```
-
-### 更改默认 ROOT 密码
-##### 只需在构建固件前执行以下命令即可设置默认 ROOT 密码（默认：无密码）
-
-```
-export ROOT_PASSWORD=12345678
-```
-
-### 使用 uhttpd 轻量 web 引擎
-##### 固件默认使用 Nginx（quic） 作为页面引擎，只需在构建固件前执行以下命令即可使用 uhttpd 取代 nginx
-##### Nginx 在具备公网的环境下可以提供更丰富的功能支持
-
-```
-export ENABLE_UHTTPD=y
-```
-
-### 禁用全模块编译（For developers）
-##### 启用该标志时，固件仅编译 config 指定的软件包和内核模块，但固件不再支持安装内核模块（opkg install kmod-xxx），强制安装模块将会导致内核崩溃
-##### 最大的可能性降低 OpenWrt 的编译耗时，适用于开发者调试构建
-
-```
-export NO_KMOD=y
-```
-
----------------
-
-## 构建 OpenWrt 24.10 最新 Releases
-
-### nanopi-r4s
-```shell
-# linux-6.12
-bash <(curl -sS https://init2.cooluc.com/build.sh) rc2 nanopi-r4s
-```
-
-### nanopi-r5s/r5c
-```shell
-# linux-6.12
-bash <(curl -sS https://init2.cooluc.com/build.sh) rc2 nanopi-r5s
-```
-
-### nanopi-r76s
-```shell
-# linux-6.12
-bash <(curl -sS https://init2.cooluc.com/build.sh) rc2 nanopi-r76s
-```
-
-### x86_64
-```shell
-# linux-6.12
-bash <(curl -sS https://init2.cooluc.com/build.sh) rc2 x86_64
-```
-
-## 构建 OpenWrt 24.10 开发版（24.10-SNAPSHOT）
-
-### nanopi-r4s
-```shell
-# linux-6.12
-bash <(curl -sS https://init2.cooluc.com/build.sh) dev nanopi-r4s
-```
-
-### nanopi-r5s/r5c
-```shell
-# linux-6.12
-bash <(curl -sS https://init2.cooluc.com/build.sh) dev nanopi-r5s
-```
-
-### nanopi-r76s
-```shell
-# linux-6.12
-bash <(curl -sS https://init2.cooluc.com/build.sh) dev nanopi-r76s
-```
-
-### x86_64
-```shell
-# linux-6.12
-bash <(curl -sS https://init2.cooluc.com/build.sh) dev x86_64
-```
-
------------------
-
-# 基于本仓库进行自定义构建 - 本地编译
-
-#### 如果你有自定义的需求，建议不要变更内核版本号，这样构建出来的固件可以直接使用 `opkg install kmod-xxxx`
-
-### 一、Fork 本仓库到自己 GitHub 存储库
-
-### 二、修改构建脚本文件：`openwrt/build.sh`（使用 Github Actions 构建时无需更改）
-
-将 init.cooluc.com 脚本默认连接替换为你的 github raw 连接，像这样 `https://raw.githubusercontent.com/你的用户名/r4s_build_script/refs/heads/master`
-
-```diff
- # script url
- if [ "$isCN" = "CN" ]; then
--    export mirror=https://init.cooluc.com
-+    export mirror=https://raw.githubusercontent.com/你的用户名/r4s_build_script/refs/heads/master
- else
--    export mirror=https://init2.cooluc.com
-+    export mirror=https://raw.githubusercontent.com/你的用户名/r4s_build_script/refs/heads/master
- fi
-```
-
-### 三、在本地 Linux 执行基于你自己仓库的构建脚本，即可编译所需固件
-
-#### nanopi-r4s openwrt-24.10
-```shell
-# linux-6.12
-bash <(curl -sS https://raw.githubusercontent.com/你的用户名/r4s_build_script/refs/heads/master/openwrt/build.sh) rc2 nanopi-r4s
-```
-
-#### nanopi-r5s/r5c openwrt-24.10
-```shell
-# linux-6.12
-bash <(curl -sS https://raw.githubusercontent.com/你的用户名/r4s_build_script/refs/heads/master/openwrt/build.sh) rc2 nanopi-r5s
-```
-
-#### x86_64 openwrt-24.10
-```shell
-# linux-6.12
-bash <(curl -sS https://raw.githubusercontent.com/你的用户名/r4s_build_script/refs/heads/master/openwrt/build.sh) rc2 x86_64
-```
-
------------------
-
-# 使用 Github Actions 构建
-
-### 一、Fork 本仓库到自己 GitHub 存储库
-
-### 二、构建固件
-
-- 在存储库名称下，单击（<img src="https://github.com/user-attachments/assets/f1db14da-2dd9-4f10-8e37-d92ef9651912" alt="Actions"> Actions）。
+<p align="center">
+  <b>基于原生 <a href="https://github.com/openwrt/openwrt" target="_blank" >OpenWrt</a> 更改与优化的固件，提供高效、稳定的使用体验！</b>
+</p>
+
+-------
+
+## 固件下载
+
+**NanoPi R4S: https://r4s.cooluc.com**
+
+**NanoPi R5S: https://r5s.cooluc.com**
+
+**NanoPi R76S: https://r76s.cooluc.com**
+
+**X86_64: https://x86.cooluc.com**
+
+**24.10-SNAPSHOT: https://snapshot.cooluc.com**
+
+## 版本信息
+
+**[Releases](https://r5s.cooluc.com/releases)：正式版 - 基于 [OpenWrt](https://github.com/openwrt/openwrt/releases) 最新 Releases 源代码和软件包编译（推荐） - [Linux 6.12 LTS](https://kernel.org/)**
+
+**[Snapshots](https://r5s.cooluc.com/snapshots)：开发版 - 基于 [OpenWrt](https://github.com/openwrt/openwrt/tree/openwrt-24.10) 最新 openwrt-24.10 分支源代码和软件包编译 - [Linux 6.12 LTS](https://kernel.org/)（每夜构建）**
+
+**[Minimal](https://r5s.cooluc.com/minimal)：轻量版 - 基于 [OpenWrt](https://github.com/openwrt/openwrt/releases) 最新 Releases 源代码和软件包编译，无内置插件（不推荐） - [Linux 6.12 LTS](https://kernel.org/)**
+
+------
+
+## 默认信息
+
+- **管理地址：[http://10.0.0.1](http://10.0.0.1) 或 [http://openwrt.lan](http://openwrt.lan)**
+- **账户：root**
+- **密码：无**
+
+------
+
+## 基本状况
+
+| 基本                                              | 状态 | 基本                         | 状态 |
+|:-------------------------------------------------:|:----:|:----------------------------:|:----:|
+| kmod 内核模块安装                                 | ✅   | 全锥型 NAT（NFT、BCM 双方案）| ✅   |
+| SS AES 硬件加速                                   | ✅   | 构建优化（O3、LTO）          | ✅   |
+| GPU 硬件加速                                      | ✅   | 内核/模块 优化（Clang/LLVM ThinLTO） | ✅   |
+| HDMI 终端输出                                     | ✅   | 在线 OTA 升级（squashfs）    | ✅   |
+| RTC 时钟 (HYM8563)                                | ✅   | 固件重置（squashfs）         | ✅   |
+| BBRv3 拥塞控制                                    | ✅   | LLVM-BPF 支持                | ✅   |
+| TCP Brutal 拥塞控制                               | ✅   | Shortcut-FE（支持 UDP 入站） | ✅   |
+| KVM 虚拟化支持                                    | ✅   | LRNG 随机数（v57）           | ✅   |
+| NGINX & CURL HTTP3/QUIC 支持                      | ✅   | PWM 风扇控制                 | ✅   |
+
+
+| 内置插件                 | 状态 | 内置插件         | 状态 |
+|:------------------------:|:----:|:----------------:|:----:|
+| PassWall                 | ✅   | Docker           | ✅   |
+| HomeProxy                | ✅   | TTY 终端         | ✅   |
+| FileBrowser              | ✅   | NetData 监控     | ✅   |
+| qBittorrent              | ✅   | DiskMan 磁盘管理 | ✅   |
+| MosDNS                   | ✅   | CPU 性能调节     | ✅   |
+| 动态 DNS                 | ✅   | SQM 列队管理     | ✅   |
+| Watchcat                 | ✅   | nlbw 宽带监控    | ✅   |
+| KMS 服务器               | ✅   | Socat            | ✅   |
+| FRP 客户端               | ✅   | 应用过滤         | ✅   |
+| 网络唤醒                 | ✅   | 访问控制         | ✅   |
+| 网络共享（Samba）        | ✅   | UPnP             | ✅   |
+| 锐捷认证                 | ✅   | IP 限速          | ✅   |
+| Aria2                    | ✅   | WireGuard        | ✅   |
+| Alist 文件列表           | ✅   | L2TP             | ✅   |
+| USB 打印服务器           | ✅   | ZeroTier         | ✅   |
+| 隔空播放（AirConnect）   | ✅   | WebDav           | ✅   |
+| 自定义命令               | ✅   | AirPlay 2        | ✅   |
+| 网速测试                 | ✅   | NATMap           | ✅   |
+
+✅ 可用
+
+❌ 不可用
+
+⏳ 计划中
+
+特别说明：
+
+* *AirPlay 2：一款简单易用的 AirPlay 音频播放器，需要外接 USB 声卡使用。*
+
+<details>
+<summary><b>LuCI 菜单概览</b></summary>
+<details>
+<summary><b>├── 状态</b></summary>
+　├── 概览<br/>
+　├── 路由<br/>
+　├── 防火墙<br/>
+　├── 系统日志<br/>
+　├── 系统进程<br/>
+　├── 实时信息<br/>
+　├── WireGuard<br/>
+　└── 释放内存
+</details>
+<details>
+<summary><b>├── 系统</b></summary>
+　├── 系统<br/>
+　├── 管理权<br/>
+　├── 软件包<br/>
+　├── 启动项<br/>
+　├── 计划任务<br/>
+　├── 挂载点<br/>
+　├── 终端<br/>
+　├── 磁盘管理<br/>
+　├── LED 配置<br/>
+　├── 在线升级<br/>
+　├── 备份/升级<br/>
+　├── 自定义命令<br/>
+　├── 文件管理<br/>
+　├── 定时重启<br/>
+　├── 主题设置<br/>
+　├── CPU 性能调节<br/>
+　└── 重启
+</details>
+<details>
+<summary><b>├── 服务</b></summary>
+　├── PassWall<br/>
+　├── HomeProxy<br/>
+　├── qBittorrent<br/>
+　├── MosDNS<br/>
+　├── 动态 DNS<br/>
+　├── KMS 服务器<br/>
+　├── Watchcat<br/>
+　├── 隔空播放<br/>
+　├── AirPlay 2<br/>
+　├── 应用过滤<br/>
+　├── Aria2<br/>
+　├── Frp 客户端<br/>
+　├── 锐捷认证<br/>
+　├── NATMap<br/>
+　├── 网络共享<br/>
+　├── 网络唤醒<br/>
+　└── ZeroTier
+</details>
+<details>
+<summary><b>├── Docker</b></summary>
+　├── 概览<br/>
+　├── 容器<br/>
+　├── 镜像<br/>
+　├── 网络<br/>
+　├── 卷标<br/>
+　├── 事件<br/>
+　└── 配置
+</details>
+<details>
+<summary><b>├── 网络存储</b></summary>
+　├── USB 打印服务器<br/>
+　└── WebDav
+</details>
+<details>
+<summary><b>├── 网络</b></summary>
+　├── 接口<br/>
+　├── 路由<br/>
+　├── DHCP/DNS<br/>
+　├── 网络诊断<br/>
+　├── 网速测试<br/>
+　├── SQM 队列管理<br/>
+　├── 防火墙<br/>
+　├── UPnP IGD 和 PCP<br/>
+　├── 带宽监控<br/>
+　├── Socat<br/>
+　└── 网速控制
+</details>
+　└── <b>退出</b>
+</details>
+
+------
+
+## 固件格式
+
+**固件分为两个文件系统，[SquashFS](https://zh.wikipedia.org/wiki/SquashFS) 和 [Ext4](https://zh.wikipedia.org/wiki/Ext4)。**
+
+**SquashFS（推荐）：固件文件名带有 “squashfs”，SquashFS 为只读文件系统，支持系统重置，更能避免 SD 卡文件系统触发写保护，支持在线 OTA 升级，适合绝大部分用户使用。**
+
+**Ext4：固件文件名带有 “ext4”，Ext4 文件系统具备整个分区可读写性质，更适合熟悉 Linux 系统的用户使用，但意外断电有几率造成分区写入保护。**
+
+
+------
+
+## NanoPi R4S/R5S 固件烧写（SD）
+
+**推荐工具：**<a href="https://www.balena.io/etcher/" target="_blank" ><img style="height:25px;" src="https://cdn.cooluc.com/r4s/balena.svg" /></a>
+
+**SD卡容量：2GB 或更多**
+
+*固件文件无需解压，直接使用工具写入 microSD 卡*
+
+------
+
+## 固件烧写（NanoPi R5S eMMC）
+
+### 准备工具
+
+- **电脑（Windows），其它操作系统自行搜索相关工具**
+- **数据线：USB-A to USB-A 或 Type-C to USB-A**
+- **瑞芯微开发工具：**<a href="https://media.cooluc.com/%E8%BD%AF%E4%BB%B6/RKDevTool/RKDevTool_Release_v2.84.zip" target="_blank" >RKDevTool_Release_v2.84.zip</a>
+
+- **Mask 设备驱动：**<a href="https://media.cooluc.com/%E8%BD%AF%E4%BB%B6/RKDevTool/DriverAssitant_v5.1.1.zip" target="_blank" >DriverAssitant_v5.1.1.zip</a>
+
+### 准备固件
+
+- **下载固件文件，并解压出 .img**
+
+### 操作过程
+
+- **安装 Mask 设备驱动**
+
+- **Mask 模式连接电脑（R5S 断电状态下，取下 SD 卡，使用数据线连接电脑。长按 “Mask” 按钮，接通 R5S 电源直至电脑发现新设备后释放 “Mask” 按钮）**
+
+  <img style="height:100px;" src="https://cdn.cooluc.com/r4s/r5s_mask.webp" />
+
+
+
+- **打开 瑞芯微开发工具：正常状态：（发现一个Maskrom设备）  缺少驱动：（没有发现设备）**
+
+  **安装步骤：**
   
-- 在左侧边栏中，单击要运行的工作流的名称：**Build releases**。
+  **① 点击 “system” 路径选择按钮（选择 zip 解压出来的 IMG 文件）**
   
-- 在工作流运行的列表上方，单击“**Run workflow**”按钮，选择要构建的设备固件并运行工作流。
+  <img src="https://cdn.cooluc.com/r4s/select_firmware.png" />
   
-  ![image](https://github.com/user-attachments/assets/3eae2e9f-efe6-48ad-8e9d-39c176fcd71c)
+  
+  
+  **② 点击 “执行”（固件写入完成后会自动重启进入 OpenWrt 系统）**
+  
+  
+  
+- ***注意：通过电脑烧写固件请使用本站下载的 [瑞芯微开发工具](https://media.cooluc.com/%E8%BD%AF%E4%BB%B6/RKDevTool/RKDevTool_Release_v2.84.zip)。***
+
+------
+
+## 固件烧写（SD to eMMC）
+
+```shell
+# 1、下载最新 Releases 固件并通过 SD 卡启动
+# 2、使用 Xftp 等工具上传一份固件到 /tmp 目录，或通过终端 wget 在线下载固件到 /tmp 目录
+
+# 3、使用内建命令写入固件到 eMMC 存储（请根据实际文件名称与路径）
+
+emmc-install /tmp/openwrt-24.10.0-rockchip-armv8-friendlyarm_nanopi-r5s-squashfs-sysupgrade.img.gz
+
+```
+
+**固件写入完成后，取下 SD 卡，手动断电重启即可完成。**
+
+------
+
+## RTC 硬件时钟（HYM8563）
+
+**本固件支持 RTC 硬件时钟读取/同步，当设备断电时，重新通电启动系统时间不会错乱** *（注意：设备需要安装 RTC 电池后使用）*
+
+**首次安装 RTC 电池写入时间命令**
+
+```shell
+hwclock -w -f /dev/rtc1
+```
+
+**测试时间读取（返回当前时间表示正常）**
+
+```shell
+hwclock -f /dev/rtc1
+```
+
+------
+
+## 开源地址
+
+**构建脚本：** [https://init2.cooluc.com](https://init2.cooluc.com)
+
+**构建脚本（存档）：** [https://github.com/sbwml/r4s_build_script](https://github.com/sbwml/r4s_build_script)
+
+**构建来源：** [https://github.com/sbwml/builder](https://github.com/sbwml/builder)
