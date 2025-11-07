@@ -1,11 +1,11 @@
 #!/bin/bash -e
-export RED_COLOR='\e[1;31m'
-export GREEN_COLOR='\e[1;32m'
-export YELLOW_COLOR='\e[1;33m'
-export BLUE_COLOR='\e[1;34m'
-export PINK_COLOR='\e[1;35m'
-export SHAN='\e[1;33;5m'
-export RES='\e[0m'
+RED_COLOR='\033[1;31m'
+GREEN_COLOR='\033[1;32m'
+YELLOW_COLOR='\033[1;33m'
+BLUE_COLOR='\033[1;34m'
+PINK_COLOR='\033[1;35m'
+SHAN='\033[1;33;5m'
+RES='\033[0m'
 
 GROUP=
 group() {
@@ -19,110 +19,92 @@ endgroup() {
     fi
     GROUP=
 }
+
 echo -e ""
 echo -e "${BLUE_COLOR}╔═════════════════════════════════════════════════════════════╗${RES}"
 echo -e "${BLUE_COLOR}║${RES}                     OPENWRT BUILD SYSTEM                    ${BLUE_COLOR}║${RES}"
 echo -e "${BLUE_COLOR}╚═════════════════════════════════════════════════════════════╝${RES}"
 echo -e "${BLUE_COLOR}┌─────────────────────────────────────────────────────────────┐${RES}"
-echo -e "${BLUE_COLOR}│${RES}  🛠️  ${YELLOW_COLOR}Developer:${RES} sbwml                                       ${BLUE_COLOR}│${RES}"
-echo -e "${BLUE_COLOR}│${RES}  🌐  ${YELLOW_COLOR}GitHub:${RES} github.com/sbwml/builder                      ${BLUE_COLOR}│${RES}"
+echo -e "${BLUE_COLOR}│${RES}  🛠️  ${YELLOW_COLOR}Developer:${RES} sbwml                                   ${BLUE_COLOR}│${RES}"
+echo -e "${BLUE_COLOR}│${RES}  🌐  ${YELLOW_COLOR}Blog:${RES} github.com/sbwml/builder                     ${BLUE_COLOR}│${RES}"
 echo -e "${BLUE_COLOR}│${RES}  💡  ${YELLOW_COLOR}Philosophy:${RES} Open Source · Customization · Performance ${BLUE_COLOR}│${RES}"
 echo -e "${BLUE_COLOR}└─────────────────────────────────────────────────────────────┘${RES}"
 echo -e "${BLUE_COLOR}🔧 ${GREEN_COLOR}Building:${RES} $(date '+%Y-%m-%d %H:%M:%S')"
 echo -e "${BLUE_COLOR}══════════════════════════════════════════════════════════════${RES}"
 echo -e ""
-#####################################
-#  NanoPi R4S OpenWrt Build Script  #
-#####################################
 
 # IP Location
 ip_info=`curl -sk https://ip.cooluc.com`;
 [ -n "$ip_info" ] && export isCN=`echo $ip_info | grep -Po 'country_code\":"\K[^"]+'` || export isCN=US
 
-# script url
-if [ "$isCN" = "CN" ]; then
-    export mirror=https://init.cooluc.com
-else
-    export mirror=https://init2.cooluc.com
-fi
 
-# github actions - caddy server
-if [ "$(whoami)" = "runner" ] && [ "$git_name" != "private" ]; then
-    export mirror=http://127.0.0.1:8080
+if [ -n "$BUILD_SCRIPT_MIRROR" ]; then
+    export mirror=$BUILD_SCRIPT_MIRROR
+else
+    if [ "$isCN" = "CN" ]; then
+        export mirror=https://init.cooluc.com
+    else
+        export mirror=https://init2.cooluc.com
+    fi
+
+    # github actions - caddy server
+    if [ "$(whoami)" = "runner" ] && [ -z "$git_password" ]; then
+        export mirror=http://127.0.0.1:8080
+    fi
 fi
 
 # private gitea
-export gitea="git.cooluc.com"
+export gitea=git.cooluc.com
 
 # github mirror
 if [ "$isCN" = "CN" ]; then
     # There is currently no stable gh proxy
     export github="github.com"
-    code_mirror="git.cooluc.com"
 else
     export github="github.com"
-    code_mirror="github.com"
 fi
 
-# Check root
+# 检测 Root
 if [ "$(id -u)" = "0" ]; then
     export FORCE_UNSAFE_CONFIGURE=1 FORCE=1
 fi
 
-# Start time
+# 开始时间
 starttime=`date +'%Y-%m-%d %H:%M:%S'`
 CURRENT_DATE=$(date +%s)
 
-# Cpus
+# 处理器核心数设置
 cores=`expr $(nproc --all) + 1`
 
-# $CURL_BAR
+# 进度条设置
 if curl --help | grep progress-bar >/dev/null 2>&1; then
     CURL_BAR="--progress-bar";
 fi
 
-SUPPORTED_BOARDS="nanopi-r4s nanopi-r5s nanopi-r76s x86_64 armv8"
+SUPPORTED_BOARDS="rockchip x86_64"
 if [ -z "$1" ] || ! echo "$SUPPORTED_BOARDS" | grep -qw "$2"; then
     echo -e "\n${RED_COLOR}Building type not specified or unsupported board: '$2'.${RES}\n"
     echo -e "Usage:\n"
 
     for board in $SUPPORTED_BOARDS; do
-        echo -e "$board releases: ${GREEN_COLOR}bash build.sh rc2 $board${RES}"
-        echo -e "$board snapshots: ${GREEN_COLOR}bash build.sh dev $board${RES}"
+        echo -e "$board releases: ${GREEN_COLOR}bash build.sh v24 $board${RES}"
     done
     echo
     exit 1
 fi
 
-# Source branch
-if [ "$1" = "dev" ]; then
-    export branch=openwrt-24.10
-    export version=dev
-elif [ "$1" = "rc2" ]; then
-    latest_release="v$(curl -s $mirror/tags/v24)"
-    export branch=$latest_release
-    export version=rc2
-fi
+# 源分支
+latest_release="v$(curl -s $mirror/tags/v24)"
+export branch=openwrt-24.10
+export version=v24
 
-# lan
+# LAN
 [ -n "$LAN" ] && export LAN=$LAN || export LAN=10.0.0.1
 
-# platform
+# 设备类型
 case "$2" in
-    armv8)
-        platform="armv8"
-        toolchain_arch="aarch64_generic"
-        ;;
-    nanopi-r4s)
-        platform="rk3399"
-        toolchain_arch="aarch64_generic"
-        ;;
-    nanopi-r5s)
-        platform="rk3568"
-        toolchain_arch="aarch64_generic"
-        ;;
-    nanopi-r76s)
-        platform="rk3576"
+    rockchip)
+        platform="rockchip"
         toolchain_arch="aarch64_generic"
         ;;
     x86_64)
@@ -132,52 +114,39 @@ case "$2" in
 esac
 export platform toolchain_arch
 
-# gcc14 & 15
-if [ "$USE_GCC13" = y ]; then
-    export USE_GCC13=y gcc_version=13
-elif [ "$USE_GCC14" = y ]; then
-    export USE_GCC14=y gcc_version=14
-elif [ "$USE_GCC15" = y ]; then
-    export USE_GCC15=y gcc_version=15
-else
-    export USE_GCC14=y gcc_version=14
-fi
-[ "$ENABLE_MOLD" = y ] && export ENABLE_MOLD=y
+# GCC 版本设置
+case "$GCC_VERSION" in
+  GCC13)
+    export gcc_version=13
+    ;;
+  GCC14)
+    export gcc_version=14
+    ;;
+  GCC15)
+    export gcc_version=15
+    ;;
+esac
 
-# build.sh flags
+echo "👉 已选择 GCC 版本: $gcc_version"
+
+
+# 脚本定义
 export \
     ENABLE_BPF=$ENABLE_BPF \
-    ENABLE_DPDK=$ENABLE_DPDK \
-    ENABLE_GLIBC=$ENABLE_GLIBC \
-    ENABLE_LRNG=$ENABLE_LRNG \
-    KERNEL_CLANG_LTO=$KERNEL_CLANG_LTO \
     ROOT_PASSWORD=$ROOT_PASSWORD
 
-# print version
+# 打印设备信息
 echo -e "\r\n${GREEN_COLOR}Building $branch${RES}\r\n"
 case "$platform" in
     x86_64)
         echo -e "${GREEN_COLOR}Model: x86_64${RES}"
         ;;
-    armv8)
-        echo -e "${GREEN_COLOR}Model: armsr/armv8${RES}"
-        [ "$1" = "rc2" ] && model="armv8"
-        ;;
-    rk3568)
-        echo -e "${GREEN_COLOR}Model: nanopi-r5s/r5c${RES}"
-        [ "$1" = "rc2" ] && model="nanopi-r5s"
-        ;;
-    rk3576)
-        echo -e "${GREEN_COLOR}Model: nanopi-r76s${RES}"
-        [ "$1" = "rc2" ] && model="nanopi-r76s"
-        ;;
-    rk3399|*)
-        echo -e "${GREEN_COLOR}Model: nanopi-r4s${RES}"
-        [ "$1" = "rc2" ] && model="nanopi-r4s"
+    rockchip)
+        echo -e "${GREEN_COLOR}Model: rockchip${RES}"
         ;;
 esac
 
-# print build opt
+# 打印构建选项
 get_kernel_version=$(curl -s $mirror/tags/kernel-6.12)
 kmod_hash=$(echo -e "$get_kernel_version" | awk -F'HASH-' '{print $2}' | awk '{print $1}' | tail -1 | md5sum | awk '{print $1}')
 kmodpkg_name=$(echo $(echo -e "$get_kernel_version" | awk -F'HASH-' '{print $2}' | awk '{print $1}')~$(echo $kmod_hash)-r1)
@@ -201,45 +170,33 @@ print_status() {
 [ -n "$ROOT_PASSWORD" ] \
     && echo -e "${GREEN_COLOR}Default Password:${RES} ${BLUE_COLOR}$ROOT_PASSWORD${RES}" \
     || echo -e "${GREEN_COLOR}Default Password:${RES} (${YELLOW_COLOR}No password${RES})"
-[ "$ENABLE_GLIBC" = "y" ] && echo -e "${GREEN_COLOR}Standard C Library:${RES} ${BLUE_COLOR}glibc${RES}" || echo -e "${GREEN_COLOR}Standard C Library:${RES} ${BLUE_COLOR}musl${RES}"
+echo -e "${GREEN_COLOR}Standard C Library:${RES} ${BLUE_COLOR}musl${RES}"
+echo -e "${GREEN_COLOR}Web Server:${RES} ${BLUE_COLOR}$web_server${RES}"
 print_status "ENABLE_OTA"        "$ENABLE_OTA"
-print_status "ENABLE_DPDK"       "$ENABLE_DPDK"
-print_status "ENABLE_MOLD"       "$ENABLE_MOLD"
 print_status "ENABLE_BPF"        "$ENABLE_BPF" "$GREEN_COLOR" "$RED_COLOR"
 print_status "ENABLE_LTO"        "$ENABLE_LTO" "$GREEN_COLOR" "$RED_COLOR"
-print_status "ENABLE_LRNG"       "$ENABLE_LRNG" "$GREEN_COLOR" "$RED_COLOR"
 print_status "ENABLE_LOCAL_KMOD" "$ENABLE_LOCAL_KMOD"
-print_status "BUILD_FAST"        "$BUILD_FAST"
-print_status "ENABLE_CCACHE"     "$ENABLE_CCACHE"
-print_status "MINIMAL_BUILD"     "$MINIMAL_BUILD"
-print_status "STD_BUILD"         "$STD_BUILD"
-print_status "KERNEL_CLANG_LTO"  "$KERNEL_CLANG_LTO" "$GREEN_COLOR" "$YELLOW_COLOR" "\n"
+print_status "BUILD_FAST"        "$BUILD_FAST" "$GREEN_COLOR" "$YELLOW_COLOR" "\n"
 
-# clean old files
-rm -rf openwrt master
+# 清理旧的文件
+rm -rf openwrt immortalwrt
 
-# openwrt - releases
+# openwrt - 克隆
 [ "$(whoami)" = "runner" ] && group "source code"
-git clone --depth=1 https://$code_mirror/openwrt/openwrt -b $branch
-
-# immortalwrt master
-git clone https://$github/immortalwrt/packages master/immortalwrt_packages --depth=1
-[ "$(whoami)" = "runner" ] && endgroup
+git clone https://$github/openwrt/openwrt -b $branch
+git clone https://$github/immortalwrt/immortalwrt -b $branch
 
 if [ -d openwrt ]; then
     cd openwrt
     curl -Os $mirror/openwrt/patch/key.tar.gz && tar zxf key.tar.gz && rm -f key.tar.gz
+    curl -Os $mirror/info.md
 else
     echo -e "${RED_COLOR}Failed to download source code${RES}"
     exit 1
 fi
 
-# tags
-if [ "$1" = "rc2" ]; then
-    git describe --abbrev=0 --tags > version.txt
-else
-    git branch | awk '{print $2}' > version.txt
-fi
+# 版本设置
+git describe --abbrev=0 --tags > version.txt
 
 # feeds mirror
 if [ "$1" = "rc2" ]; then
@@ -260,7 +217,7 @@ src-git routing https://$code_mirror/openwrt/routing.git$routing
 src-git telephony https://$code_mirror/openwrt/telephony.git$telephony
 EOF
 
-# Init feeds
+# 更新并安装源
 [ "$(whoami)" = "runner" ] && group "feeds update -a"
 ./scripts/feeds update -a
 [ "$(whoami)" = "runner" ] && endgroup
@@ -269,7 +226,7 @@ EOF
 ./scripts/feeds install -a
 [ "$(whoami)" = "runner" ] && endgroup
 
-# loader dl
+# 加载程序
 if [ -f ../dl.gz ]; then
     tar xf ../dl.gz -C .
 fi
@@ -290,11 +247,9 @@ scripts=(
 for script in "${scripts[@]}"; do
   curl -sO "$mirror/openwrt/scripts/$script"
 done
-if [ -n "$git_password" ] && [ -n "$private_url" ]; then
-    curl -u openwrt:$git_password -sO "$private_url"
-else
-    curl -sO $mirror/openwrt/scripts/10-custom.sh
-fi
+
+curl -sO $mirror/openwrt/scripts/10-custom.sh
+
 chmod 0755 *sh
 [ "$(whoami)" = "runner" ] && group "patching openwrt"
 bash 00-prepare_base.sh
@@ -368,6 +323,7 @@ if [ "$KERNEL_CLANG_LTO" = "y" ]; then
     fi
     echo 'CONFIG_EXTRA_OPTIMIZATION=""' >> .config
     echo '# CONFIG_PACKAGE_kselftests-bpf is not set' >> .config
+    echo '# CONFIG_PACKAGE_kmod-gpio-button-hotplug is not set' >> .config
 fi
 
 # kernel - enable LRNG
