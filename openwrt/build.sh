@@ -81,30 +81,48 @@ if curl --help | grep progress-bar >/dev/null 2>&1; then
     CURL_BAR="--progress-bar";
 fi
 
-SUPPORTED_BOARDS="rockchip x86_64"
+SUPPORTED_BOARDS="nanopi-r4s nanopi-r5s nanopi-r76s x86_64 armv8"
 if [ -z "$1" ] || ! echo "$SUPPORTED_BOARDS" | grep -qw "$2"; then
     echo -e "\n${RED_COLOR}Building type not specified or unsupported board: '$2'.${RES}\n"
     echo -e "Usage:\n"
 
     for board in $SUPPORTED_BOARDS; do
-        echo -e "$board releases: ${GREEN_COLOR}bash build.sh v24 $board${RES}"
+        echo -e "$board releases: ${GREEN_COLOR}bash build.sh rc2 $board${RES}"
+        echo -e "$board snapshots: ${GREEN_COLOR}bash build.sh dev $board${RES}"
     done
     echo
     exit 1
-fi
+f
 
 # 源分支
-latest_release="v$(curl -s $mirror/tags/v24)"
-export branch=openwrt-24.10
-export version=v24
+if [ "$1" = "dev" ]; then
+    export branch=openwrt-24.10
+    export version=dev
+elif [ "$1" = "rc2" ]; then
+    latest_release="v$(curl -s $mirror/tags/v24)"
+    export branch=$latest_release
+    export version=rc2
+fi
 
 # LAN
 [ -n "$LAN" ] && export LAN=$LAN || export LAN=10.0.0.1
 
-# 设备类型
+# platform
 case "$2" in
-    rockchip)
-        platform="rockchip"
+    armv8)
+        platform="armv8"
+        toolchain_arch="aarch64_generic"
+        ;;
+    nanopi-r4s)
+        platform="rk3399"
+        toolchain_arch="aarch64_generic"
+        ;;
+    nanopi-r5s)
+        platform="rk3568"
+        toolchain_arch="aarch64_generic"
+        ;;
+    nanopi-r76s)
+        platform="rk3576"
         toolchain_arch="aarch64_generic"
         ;;
     x86_64)
@@ -133,6 +151,10 @@ echo "👉 已选择 GCC 版本: $gcc_version"
 # 脚本定义
 export \
     ENABLE_BPF=$ENABLE_BPF \
+    ENABLE_DPDK=$ENABLE_DPDK \
+    ENABLE_GLIBC=$ENABLE_GLIBC \
+    ENABLE_LRNG=$ENABLE_LRNG \
+    KERNEL_CLANG_LTO=$KERNEL_CLANG_LTO \
     ROOT_PASSWORD=$ROOT_PASSWORD
 
 # 打印设备信息
@@ -141,8 +163,21 @@ case "$platform" in
     x86_64)
         echo -e "${GREEN_COLOR}Model: x86_64${RES}"
         ;;
-    rockchip)
-        echo -e "${GREEN_COLOR}Model: rockchip${RES}"
+    armv8)
+        echo -e "${GREEN_COLOR}Model: armsr/armv8${RES}"
+        [ "$1" = "rc2" ] && model="armv8"
+        ;;
+    rk3568)
+        echo -e "${GREEN_COLOR}Model: nanopi-r5s/r5c${RES}"
+        [ "$1" = "rc2" ] && model="nanopi-r5s"
+        ;;
+    rk3576)
+        echo -e "${GREEN_COLOR}Model: nanopi-r76s${RES}"
+        [ "$1" = "rc2" ] && model="nanopi-r76s"
+        ;;
+    rk3399|*)
+        echo -e "${GREEN_COLOR}Model: nanopi-r4s${RES}"
+        [ "$1" = "rc2" ] && model="nanopi-r4s"
         ;;
 esac
 
@@ -170,13 +205,19 @@ print_status() {
 [ -n "$ROOT_PASSWORD" ] \
     && echo -e "${GREEN_COLOR}Default Password:${RES} ${BLUE_COLOR}$ROOT_PASSWORD${RES}" \
     || echo -e "${GREEN_COLOR}Default Password:${RES} (${YELLOW_COLOR}No password${RES})"
-echo -e "${GREEN_COLOR}Standard C Library:${RES} ${BLUE_COLOR}musl${RES}"
-echo -e "${GREEN_COLOR}Web Server:${RES} ${BLUE_COLOR}$web_server${RES}"
+[ "$ENABLE_GLIBC" = "y" ] && echo -e "${GREEN_COLOR}Standard C Library:${RES} ${BLUE_COLOR}glibc${RES}" || echo -e "${GREEN_COLOR}Standard C Library:${RES} ${BLUE_COLOR}musl${RES}"
 print_status "ENABLE_OTA"        "$ENABLE_OTA"
+print_status "ENABLE_DPDK"       "$ENABLE_DPDK"
+print_status "ENABLE_MOLD"       "$ENABLE_MOLD"
 print_status "ENABLE_BPF"        "$ENABLE_BPF" "$GREEN_COLOR" "$RED_COLOR"
 print_status "ENABLE_LTO"        "$ENABLE_LTO" "$GREEN_COLOR" "$RED_COLOR"
+print_status "ENABLE_LRNG"       "$ENABLE_LRNG" "$GREEN_COLOR" "$RED_COLOR"
 print_status "ENABLE_LOCAL_KMOD" "$ENABLE_LOCAL_KMOD"
-print_status "BUILD_FAST"        "$BUILD_FAST" "$GREEN_COLOR" "$YELLOW_COLOR" "\n"
+print_status "BUILD_FAST"        "$BUILD_FAST"
+print_status "ENABLE_CCACHE"     "$ENABLE_CCACHE"
+print_status "MINIMAL_BUILD"     "$MINIMAL_BUILD"
+print_status "STD_BUILD"         "$STD_BUILD"
+print_status "KERNEL_CLANG_LTO"  "$KERNEL_CLANG_LTO" "$GREEN_COLOR" "$YELLOW_COLOR" "\n"
 
 # 清理旧的文件
 rm -rf openwrt immortalwrt
